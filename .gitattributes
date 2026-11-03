@@ -1,0 +1,4 @@
+# Ensure shell scripts always retain Linux/Unix LF line endings
+*.sh text eol=lf
+Jenkinsfile text eol=lf
+Dockerfile text eol=lf

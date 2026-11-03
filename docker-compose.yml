@@ -1,0 +1,158 @@
+# ==============================================================================
+# Docker Compose: AI-Powered DevOps Monitoring & Auto-Healing Platform
+# Orchestrates: Flask App, Prometheus, Grafana, Node Exporter, cAdvisor, AI Analyzer
+# ==============================================================================
+
+version: "3.8"
+
+services:
+  # -------------------------------------------------------
+  # 1. Flask Web Application
+  # -------------------------------------------------------
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: flask-app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - APP_NAME=ai-devops-monitor
+      - APP_PORT=5000
+      - APP_ENV=production
+      - LOG_FILE_PATH=/var/log/app/app.log
+      - LOG_LEVEL=INFO
+    volumes:
+      - app-logs:/var/log/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - devops-network
+
+  # -------------------------------------------------------
+  # 2. Prometheus Monitoring Server
+  # -------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - app
+    networks:
+      - devops-network
+
+  # -------------------------------------------------------
+  # 3. Grafana Visual Analytics & Dashboards
+  # -------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_PANELS_DISABLE_SANITIZE_HTML=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - devops-network
+
+  # -------------------------------------------------------
+  # 4. Host OS Metrics Exporter
+  # -------------------------------------------------------
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: node-exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - devops-network
+
+  # -------------------------------------------------------
+  # 5. Container Telemetry & Resource Limits Exporter
+  # -------------------------------------------------------
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    networks:
+      - devops-network
+
+  # -------------------------------------------------------
+  # 6. AI Log Analyzer Daemon
+  # -------------------------------------------------------
+  ai-analyzer:
+    build:
+      context: ./ai-analyzer
+      dockerfile: Dockerfile
+    container_name: ai-analyzer
+    restart: unless-stopped
+    environment:
+      - LOG_FILE_PATH=/var/log/app/app.log
+      - AI_ANALYZER_INTERVAL_SECONDS=${AI_ANALYZER_INTERVAL_SECONDS:-30}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    volumes:
+      - app-logs:/var/log/app:ro
+      - ./reports:/analyzer/reports
+    depends_on:
+      - app
+    networks:
+      - devops-network
+
+# ---------------------------------------------------------
+# Networks & Storage Definitions
+# ---------------------------------------------------------
+networks:
+  devops-network:
+    driver: bridge
+    name: devops-network
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  app-logs:
+    driver: local
