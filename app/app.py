@@ -371,6 +371,24 @@ def internal_error(error):
 # ---------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------
+def get_bind_port(preferred_port: int) -> int:
+    """Validate port availability, falling back to 5001 if preferred port is already bound."""
+    import socket
+    for port in [preferred_port, 5001, 5050]:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("0.0.0.0", port))
+                return port
+        except (OSError, PermissionError):
+            continue
+    return preferred_port
+
+
 if __name__ == "__main__":
-    logger.info(f"Starting {APP_NAME} in {APP_ENV} mode on port {APP_PORT}...")
-    app.run(host="0.0.0.0", port=APP_PORT, debug=False)
+    target_port = get_bind_port(APP_PORT)
+    if target_port != APP_PORT:
+        logger.warning(
+            f"Port {APP_PORT} is in use on host. Automatically selected available port: {target_port}"
+        )
+    logger.info(f"Starting {APP_NAME} in {APP_ENV} mode on port {target_port}...")
+    app.run(host="0.0.0.0", port=target_port, debug=False)
