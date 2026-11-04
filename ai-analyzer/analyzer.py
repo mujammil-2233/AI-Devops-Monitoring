@@ -223,7 +223,7 @@ Do NOT suggest destructive commands (e.g. rm -rf, dropping production databases)
                 from google import genai
                 client = genai.Client(api_key=self.api_key)
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-flash-lite-latest",
                     contents=prompt,
                 )
                 if response and hasattr(response, "text") and response.text:
@@ -231,7 +231,7 @@ Do NOT suggest destructive commands (e.g. rm -rf, dropping production databases)
             except ImportError:
                 # Direct HTTP request fallback to Gemini REST API
                 import requests
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={self.api_key}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={self.api_key}"
                 payload = {"contents": [{"parts": [{"text": prompt}]}]}
                 resp = requests.post(url, json=payload, timeout=15)
                 if resp.status_code == 200:
